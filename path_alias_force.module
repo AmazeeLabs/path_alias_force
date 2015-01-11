@@ -37,19 +37,12 @@ function path_alias_force_path_update($path) {
  *
  * @param array|int $path
  *   The path array as it was passed to hook_path_insert() or
- *   hook_path_update(). Or the path ID (url_alias.pid).
+ *   hook_path_update().
  */
 function _path_alias_force_path_changed($path) {
   static $self_call = FALSE;
   if ($self_call) {
     return;
-  }
-
-  if (is_numeric($path)) {
-    $path = path_load(array('pid' => $path));
-    if (!$path) {
-      return;
-    }
   }
 
   // Ensure that "forced" flag is unset.
@@ -141,4 +134,20 @@ function _path_alias_force_remove_forced_aliases() {
   db_delete('url_alias')
     ->condition('forced', 1)
     ->execute();
+}
+
+/**
+ * Operation for batch creation of forced aliases.
+ *
+ * @param array $path_ids
+ *   Path IDs to process.
+ */
+function _path_alias_force_batch_create_op($path_ids) {
+  foreach ($path_ids as $path_id) {
+    $path = path_load(array('pid' => $path_id));
+    if (!$path) {
+      return;
+    }
+    _path_alias_force_path_changed($path);
+  }
 }

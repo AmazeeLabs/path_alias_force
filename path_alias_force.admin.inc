@@ -24,7 +24,7 @@ function path_alias_force_admin_form_submit(&$form, &$form_state) {
     ->fetchCol();
   $operations = array();
   while($path_ids){
-    $operations[] = array('_path_alias_force_path_changed', array(array_splice($path_ids, 0, 100)));
+    $operations[] = array('_path_alias_force_batch_create_op', array(array_splice($path_ids, 0, 100)));
   }
   $batch = array(
     'title' => t('Recreating forced path aliases...'),
