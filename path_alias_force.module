@@ -1,0 +1,144 @@
+<?php
+
+define('PATH_ALIAS_FORCE_ADMIN_PATH', 'admin/config/search/path/path-alias-force');
+
+/**
+ * Implements hook_menu().
+ */
+function path_alias_force_menu() {
+  $items = array();
+  $items[PATH_ALIAS_FORCE_ADMIN_PATH] = array(
+    'title' => 'Forced aliases',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('path_alias_force_admin_form'),
+    'access arguments' => array('administer url aliases'),
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'path_alias_force.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_path_insert().
+ */
+function path_alias_force_path_insert($path) {
+  _path_alias_force_path_changed($path);
+}
+
+/**
+ * Implements hook_path_update().
+ */
+function path_alias_force_path_update($path) {
+  _path_alias_force_path_changed($path);
+}
+
+/**
+ * Ensures that alias exists in all languages.
+ *
+ * @param array|int $path
+ *   The path array as it was passed to hook_path_insert() or
+ *   hook_path_update(). Or the path ID (url_alias.pid).
+ */
+function _path_alias_force_path_changed($path) {
+  static $self_call = FALSE;
+  if ($self_call) {
+    return;
+  }
+
+  if (is_numeric($path)) {
+    $path = path_load(array('pid' => $path));
+    if (!$path) {
+      return;
+    }
+  }
+
+  // Ensure that "forced" flag is unset.
+  db_update('url_alias')
+    ->condition('pid', $path['pid'])
+    ->fields(array('forced' => 0))
+    ->execute();
+
+  // Do not process LANGUAGE_NONE aliases because they may have no need for the
+  // translated aliases.
+  if ($path['language'] != LANGUAGE_NONE) {
+    $langcodes = array_keys(language_list());
+    foreach ($langcodes as $langcode) {
+      if ($langcode != $path['language']) {
+
+        // Skip, if there is common (non forced) alias.
+        $language_path = path_load(array(
+          'language' => $langcode,
+          'source' => $path['source'],
+          'forced' => 0,
+        ));
+        if ($language_path) {
+          continue;
+        }
+
+        // Try to fetch the most appropriate alias according to the language
+        // fallback settings.
+        $fallback_langcodes = array_keys(array_flip((array) module_invoke('language_fallback', 'get_chain', $langcode)) + array_flip(language_fallback_get_candidates()) + array(LANGUAGE_NONE => 0));
+        unset($alias);
+        foreach ($fallback_langcodes as $fallback_langcode) {
+          $existing_path = path_load(array(
+            'language' => $fallback_langcode,
+            'source' => $path['source'],
+          ));
+          if ($existing_path) {
+            $alias = $existing_path['alias'];
+            break;
+          }
+        }
+        $alias = isset($alias) ? $alias : $path['alias'];
+
+        // Finally, create or update the forced alias if required.
+        $language_path = array(
+          'language' => $langcode,
+          'source' => $path['source'],
+          'forced' => 1,
+        );
+        $language_path = path_load($language_path) ?: $language_path;
+        if (!isset($language_path['alias']) || $language_path['alias'] != $alias) {
+          $language_path['alias'] = $alias;
+          $self_call = TRUE;
+          path_save($language_path);
+          $self_call = FALSE;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function path_alias_force_form_alter(&$form, &$form_state, $form_id) {
+
+  // There are no hooks for the language changes, so use form submit handler to
+  // notify the user about the necessity of forced path aliases recreation.
+  $form_ids = array(
+    'locale_languages_delete_form',
+    'locale_languages_edit_form',
+    'locale_languages_custom_form',
+    'locale_languages_predefined_form',
+  );
+  if (in_array($form_id, $form_ids)) {
+    $form['#submit'][] = '_path_alias_force_warn_user_of_language_settings_change';
+  }
+}
+
+/**
+ * Warns user about language settings change.
+ */
+function _path_alias_force_warn_user_of_language_settings_change() {
+  drupal_set_message(t('You have just changed the language settings. Please recreate forced path aliases at the !link path.', array('!link' => l(PATH_ALIAS_FORCE_ADMIN_PATH, PATH_ALIAS_FORCE_ADMIN_PATH))), 'warning');
+}
+
+/**
+ * Removes all forced aliases.
+ */
+function _path_alias_force_remove_forced_aliases() {
+  db_delete('url_alias')
+    ->condition('forced', 1)
+    ->execute();
+}

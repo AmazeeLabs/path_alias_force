@@ -1,0 +1,50 @@
+<?php
+
+/**
+ * Implements hook_schema_alter().
+ */
+function path_alias_force_schema_alter(&$schema) {
+  $schema['url_alias']['fields']['forced'] = array(
+    'type' => 'int',
+    'size' => 'tiny',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => 'Indicates if the alias was forced by the path_alias_force module.',
+  );
+}
+
+/**
+ * Implements hook_install().
+ */
+function path_alias_force_install() {
+  $field = array(
+    'type' => 'int',
+    'size' => 'tiny',
+    'not null' => TRUE,
+    'default' => 0,
+    'description' => 'Indicates if the alias was forced by the path_alias_force module.',
+  );
+  db_add_field('url_alias', 'forced', $field);
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function path_alias_force_uninstall() {
+  db_drop_field('url_alias', 'forced');
+}
+
+/**
+ * Implements hook_enable().
+ */
+function path_alias_force_enable() {
+  drupal_set_message(t('You have just enabled the "Path alias force" module. Please recreate forced path aliases at the !link path.', array('!link' => l(PATH_ALIAS_FORCE_ADMIN_PATH, PATH_ALIAS_FORCE_ADMIN_PATH))), 'warning');
+}
+
+/**
+ * Implements hook_disable().
+ */
+function path_alias_force_disable() {
+  _path_alias_force_remove_forced_aliases();
+  drupal_set_message(t('You have just disabled the "Path alias force" module. All forced aliases have been deleted.'), 'warning');
+}
