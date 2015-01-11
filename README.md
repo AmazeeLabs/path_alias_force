@@ -2,6 +2,8 @@
 
 A drupal module that ensures that all not LANGUAGE_NONE aliases do exist in all languages.
 
+Assume this module as the language fallback for path aliases.
+
 Let's say you have a site with EN and DE languages. You created a node in EN language, and set the "pages/my-node" alias to it. While you didn't translated your node to the DE language, it's path will be "node/1" at the DE pages. This module prevent such behavior always creating aliases in all languages for any existing aliases, so URLs are always nice.
 
 ## Before installation
