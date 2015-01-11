@@ -1,9 +1,5 @@
 <?php
 
-if (!defined('PATH_ALIAS_FORCE_ADMIN_PATH')) {
-  define('PATH_ALIAS_FORCE_ADMIN_PATH', 'admin/config/search/path/path-alias-force');
-}
-
 /**
  * Implements hook_schema_alter().
  */
@@ -42,6 +38,11 @@ function path_alias_force_uninstall() {
  * Implements hook_enable().
  */
 function path_alias_force_enable() {
+
+  // When installing from Drush environment, the .module file is not included,
+  // so constants are not available. Force the .module file include.
+  require_once realpath(dirname(__FILE__)) . '/path_alias_force.module';
+
   drupal_set_message(t('You have just enabled the "Path alias force" module. Please recreate forced path aliases at the !link path.', array('!link' => l(PATH_ALIAS_FORCE_ADMIN_PATH, PATH_ALIAS_FORCE_ADMIN_PATH))), 'warning');
 }
 
