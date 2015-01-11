@@ -1,5 +1,9 @@
 <?php
 
+if (!defined('PATH_ALIAS_FORCE_ADMIN_PATH')) {
+  define('PATH_ALIAS_FORCE_ADMIN_PATH', 'admin/config/search/path/path-alias-force');
+}
+
 /**
  * Implements hook_schema_alter().
  */
