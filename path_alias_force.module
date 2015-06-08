@@ -55,6 +55,9 @@ function _path_alias_force_path_changed($path) {
   // translated aliases.
   if ($path['language'] != LANGUAGE_NONE) {
     $langcodes = array_keys(language_list());
+    if (variable_get('path_alias_force_force_und')) {
+      $langcodes[] = LANGUAGE_NONE;
+    }
     foreach ($langcodes as $langcode) {
       if ($langcode != $path['language']) {
 
