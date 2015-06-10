@@ -96,9 +96,11 @@ function _path_alias_force_path_changed($path) {
         $language_path = path_load($language_path) ?: $language_path;
         if (!isset($language_path['alias']) || $language_path['alias'] != $alias) {
           $language_path['alias'] = $alias;
-          $self_call = TRUE;
-          path_save($language_path);
-          $self_call = FALSE;
+          if (_path_alias_force_ensure_unique_alias($language_path['alias'], $language_path['language'])) {
+            $self_call = TRUE;
+            path_save($language_path);
+            $self_call = FALSE;
+          }
         }
       }
     }
@@ -153,4 +155,36 @@ function _path_alias_force_batch_create_op($path_ids) {
     }
     _path_alias_force_path_changed($path);
   }
+}
+
+/**
+ * Ensures unique alias. Adds numeric suffix to it if it is not unique.
+ *
+ * @param string $alias
+ *   Path alias.
+ * @param string $langcode
+ *   Language code.
+ *
+ * @return bool
+ *   Returns TRUE if alias is unique, or if it has been made unique. FALSE
+ *   otherwise.
+ */
+function _path_alias_force_ensure_unique_alias(&$alias, $langcode) {
+  $alias_original = $alias;
+  $i = 0;
+  $limit = 1000;
+  do {
+    if ($i) {
+      $alias = $alias_original . '-' . $i;
+    }
+    $existing = db_select('url_alias', 'ua')
+      ->condition('ua.alias', $alias)
+      ->condition('ua.language', $langcode)
+      ->countQuery()
+      ->execute()
+      ->fetchfield();
+    $i++;
+  }
+  while ($existing && $i < $limit);
+  return !$existing;
 }
