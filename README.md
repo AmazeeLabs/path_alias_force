@@ -22,3 +22,25 @@ Aliases should be manually recreated at:
 - language settings change
 
 The module tries to detect these events and warn user with a message. However, this is not always possible because there are no language hooks in Drupal 7.
+
+## Hidden options
+
+### path_alias_force_force_und
+
+There is the "path_alias_force_force_und" option that does not present on the admin UI.
+
+```bash
+drush vset path_alias_force_force_und 1   # to enable
+drush vdel path_alias_force_force_und     # to disable
+# don't forget to recreate aliases after enabling/disabling
+```
+
+By default, Drupal has two strategies for creating path aliases:
+
+1. Path can have only one Language Neutral (und) alias.
+1. Path can have aliases for languages, but cannot have Language Neutral (und) alias.
+
+
+By enabling this option, the module will also force the Language Neutral (und) alias on the second behavior.
+
+That option changes the default workflow, so some unexpected things may happen. Please only enable this option if you really need to.

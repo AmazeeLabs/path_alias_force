@@ -54,3 +54,36 @@ function path_alias_force_disable() {
   _path_alias_force_remove_forced_aliases();
   drupal_set_message(t('You have just disabled the "Path alias force" module. All forced aliases have been deleted.'), 'warning');
 }
+
+/**
+ * Remove duplicated aliases for the source/language pairs.
+ */
+function path_alias_force_update_7100() {
+  // Fix the consequence of the bug described in
+  /* @see _path_alias_force_entity_changed() */
+  // Find all aliases that have duplicates for the source/language pairs.
+  $duplicates = db_select('url_alias', 'u')
+    ->fields('u', array('source', 'language'))
+    ->groupBy('u.source')
+    ->groupBy('u.language')
+    ->having('COUNT(*) > 1')
+    ->execute()
+    ->fetchAll();
+  foreach ($duplicates as $duplicate) {
+    // Only one record is actually used by Drupal. Find it and remove others.
+    if ($alias = drupal_lookup_path('alias', $duplicate->source, $duplicate->language)) {
+      $path = path_load(array(
+        'source' => $duplicate->source,
+        'alias' => $alias,
+        'language' => $duplicate->language
+      ));
+      if (!empty($path['pid'])) {
+        db_delete('url_alias')
+          ->condition('source', $duplicate->source)
+          ->condition('language', $duplicate->language)
+          ->condition('pid', $path['pid'], '<>')
+          ->execute();
+      }
+    }
+  }
+}

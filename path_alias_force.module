@@ -35,13 +35,17 @@ function path_alias_force_path_update($path) {
 /**
  * Ensures that alias exists in all languages.
  *
- * @param array|int $path
+ * @param array $path
  *   The path array as it was passed to hook_path_insert() or
  *   hook_path_update().
  */
 function _path_alias_force_path_changed($path) {
   static $self_call = FALSE;
   if ($self_call) {
+    return;
+  }
+  $disabled_sources = drupal_static('path_alias_force_disabled_sources', array());
+  if (isset($disabled_sources[$path])) {
     return;
   }
 
@@ -108,6 +112,85 @@ function _path_alias_force_path_changed($path) {
 }
 
 /**
+ * Implements hook_module_implements_alter().
+ */
+function path_alias_force_module_implements_alter(&$implementations, $hook) {
+  if (isset($implementations['path_alias_force'])) {
+
+    /* @see _path_alias_force_entity_changed() */
+    if ($hook == 'entity_presave') {
+      $group = $implementations['path_alias_force'];
+      unset($implementations['path_alias_force']);
+      $implementations = array('path_alias_force' => $group) + $implementations;
+    }
+    if ($hook == 'entity_insert' || $hook == 'entity_update') {
+      $group = $implementations['path_alias_force'];
+      unset($implementations['path_alias_force']);
+      $implementations['path_alias_force'] = $group;
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_presave().
+ */
+function path_alias_force_entity_presave($entity, $entity_type) {
+
+  /* @see _path_alias_force_entity_changed() */
+  $source_base = $entity_type == 'taxonomy_term' ? 'taxonomy/term' : $entity_type;
+  list($id) = entity_extract_ids($entity_type, $entity);
+  $source = $source_base . '/' . $id;
+  $disabled_sources =& drupal_static('path_alias_force_disabled_sources', array());
+  $disabled_sources[$source] = $source;
+  _path_alias_force_remove_forced_aliases($source);
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function path_alias_force_entity_insert($entity, $entity_type) {
+  _path_alias_force_entity_changed($entity, $entity_type);
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function path_alias_force_entity_update($entity, $entity_type) {
+  _path_alias_force_entity_changed($entity, $entity_type);
+}
+
+/**
+ * Creates forced aliases for entity paths.
+ *
+ * In hook_entity_presave() we remove all forced aliases created for an entity,
+ * disable theirs creation, and in hook_entity_{insert|update}() we create them
+ * again.
+ *
+ * This is required to be on the safe line, because other modules don't know
+ * about the "forced" parameter, and we can't hook queries they executed.
+ *
+ * One example. If the "path_alias_force_force_und" is enabled, duplicate
+ * aliases for the source/language pair could be created. This happens because
+ * _pathauto_existing_alias_data() fetches forced "und" alias while normally
+ * this alias does not exist. But we prevent this buggy behaviour by
+ * removing/restoring forced aliases during entity_save() call.
+ *
+ * @param object $entity
+ * @param string $entity_type
+ */
+function _path_alias_force_entity_changed($entity, $entity_type) {
+  $disabled_sources =& drupal_static('path_alias_force_disabled_sources', array());
+  foreach ($disabled_sources as $source => $_) {
+    unset($disabled_sources[$source]);
+    // First check if any alias for this source was created.
+    if ($path = path_load(array('source' => $source, 'forced' => 0))) {
+      // Now create forced aliases.
+      _path_alias_force_path_changed($path);
+    }
+  }
+}
+
+/**
  * Implements hook_form_alter().
  */
 function path_alias_force_form_alter(&$form, &$form_state, $form_id) {
@@ -135,25 +218,27 @@ function _path_alias_force_warn_user_of_language_settings_change() {
 /**
  * Removes all forced aliases.
  */
-function _path_alias_force_remove_forced_aliases() {
-  db_delete('url_alias')
-    ->condition('forced', 1)
-    ->execute();
+function _path_alias_force_remove_forced_aliases($source = NULL) {
+  $query = db_delete('url_alias');
+  $query->condition('forced', 1);
+  if ($source !== NULL) {
+    $query->condition('source', $source);
+  }
+  $query->execute();
 }
 
 /**
  * Operation for batch creation of forced aliases.
  *
- * @param array $path_ids
+ * @param array $sources
  *   Path IDs to process.
  */
-function _path_alias_force_batch_create_op($path_ids) {
-  foreach ($path_ids as $path_id) {
-    $path = path_load(array('pid' => $path_id));
-    if (!$path) {
-      return;
+function _path_alias_force_batch_create_op($sources) {
+  foreach ($sources as $source) {
+    _path_alias_force_remove_forced_aliases($source);
+    if ($path = path_load(array('source' => $source, 'forced' => 0))) {
+      _path_alias_force_path_changed($path);
     }
-    _path_alias_force_path_changed($path);
   }
 }
 
@@ -177,9 +262,9 @@ function _path_alias_force_ensure_unique_alias(&$alias, $langcode) {
     if ($i) {
       $alias = $alias_original . '-' . $i;
     }
-    $existing = db_select('url_alias', 'ua')
-      ->condition('ua.alias', $alias)
-      ->condition('ua.language', $langcode)
+    $existing = db_select('url_alias', 'u')
+      ->condition('u.alias', $alias)
+      ->condition('u.language', $langcode)
       ->countQuery()
       ->execute()
       ->fetchfield();
