@@ -45,7 +45,7 @@ function _path_alias_force_path_changed($path) {
     return;
   }
   $disabled_sources = drupal_static('path_alias_force_disabled_sources', array());
-  if (isset($disabled_sources[$path])) {
+  if (isset($disabled_sources[$path['source']])) {
     return;
   }
 
