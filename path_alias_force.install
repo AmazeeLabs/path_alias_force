@@ -87,3 +87,15 @@ function path_alias_force_update_7100() {
     }
   }
 }
+
+/**
+ * Remove duplicated aliases for the source/language pairs.
+ */
+function path_alias_force_update_7101() {
+  // The bug that was fixed in
+  /* @link https://github.com/AmazeeLabs/path_alias_force/commit/f2af17c */
+  // was not really fixed because of this
+  /* @link https://github.com/AmazeeLabs/path_alias_force/commit/3e23711 */
+  // So we have to remove duplicate aliases again.
+  path_alias_force_update_7100();
+}
